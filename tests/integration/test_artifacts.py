@@ -1853,8 +1853,8 @@ class TestDownloadUrlValidation:
         httpx_mock: HTTPXMock,
         build_rpc_response,
     ):
-        """_download_url raises ArtifactDownloadError for non-HTTPS URLs."""
-        from notebooklm.types import ArtifactDownloadError
+        """_download_url raises ValidationError for non-HTTPS URLs."""
+        from notebooklm.exceptions import ValidationError
 
         # Build completed audio artifact with HTTP (not HTTPS) URL
         audio_artifact = [
@@ -1877,7 +1877,7 @@ class TestDownloadUrlValidation:
         httpx_mock.add_response(content=response.encode())
 
         async with NotebookLMClient(auth_tokens) as client:
-            with pytest.raises(ArtifactDownloadError, match="must use HTTPS"):
+            with pytest.raises(ValidationError, match="must use HTTPS"):
                 await client.artifacts.download_audio("nb_123", "/tmp/audio.mp4")
 
     @pytest.mark.asyncio
@@ -1887,8 +1887,8 @@ class TestDownloadUrlValidation:
         httpx_mock: HTTPXMock,
         build_rpc_response,
     ):
-        """_download_url raises ArtifactDownloadError for untrusted domains."""
-        from notebooklm.types import ArtifactDownloadError
+        """_download_url raises ValidationError for untrusted domains."""
+        from notebooklm.exceptions import ValidationError
 
         audio_artifact = [
             "audio_untrusted",
@@ -1910,7 +1910,7 @@ class TestDownloadUrlValidation:
         httpx_mock.add_response(content=response.encode())
 
         async with NotebookLMClient(auth_tokens) as client:
-            with pytest.raises(ArtifactDownloadError, match="Untrusted download domain"):
+            with pytest.raises(ValidationError, match="Untrusted host"):
                 await client.artifacts.download_audio("nb_123", "/tmp/audio.mp4")
 
 

@@ -14,11 +14,11 @@ import logging
 import re
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
-from urllib.parse import urlparse
 
 import httpx
 
 from ._core import ClientCore
+from ._netsec import validate_trusted_https_url
 from .auth import load_httpx_cookies
 from .exceptions import ValidationError
 from .rpc import (
@@ -1978,6 +1978,8 @@ class ArtifactsAPI:
     ) -> builtins.list[str]:
         """Download multiple files using httpx with proper cookie handling.
 
+        Validates each URL before request. Only trusted hosts receive credentials.
+
         Args:
             urls_and_paths: List of (url, output_path) tuples.
 
@@ -1996,6 +1998,7 @@ class ArtifactsAPI:
         ) as client:
             for url, output_path in urls_and_paths:
                 try:
+                    validate_trusted_https_url(url, purpose="artifact batch download")
                     response = await client.get(url)
                     response.raise_for_status()
 
@@ -2033,17 +2036,8 @@ class ArtifactsAPI:
         Raises:
             ArtifactDownloadError: If download fails or authentication expired.
         """
-        # Validate URL scheme and domain before sending auth cookies.
-        # httpx sends cookies to every request made by the client regardless of
-        # domain, so we must ensure the URL belongs to a trusted Google domain.
-        parsed = urlparse(url)
-        if parsed.scheme != "https":
-            raise ArtifactDownloadError("media", details=f"Download URL must use HTTPS: {url[:80]}")
-        trusted = (".google.com", ".googleusercontent.com", ".googleapis.com")
-        if not any(parsed.netloc == d.lstrip(".") or parsed.netloc.endswith(d) for d in trusted):
-            raise ArtifactDownloadError(
-                "media", details=f"Untrusted download domain: {parsed.netloc}"
-            )
+        # Validate URL before sending auth cookies (shared trust boundary).
+        validate_trusted_https_url(url, purpose="artifact download")
 
         output_file = Path(output_path)
         output_file.parent.mkdir(parents=True, exist_ok=True)

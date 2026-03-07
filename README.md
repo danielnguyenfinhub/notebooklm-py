@@ -190,6 +190,10 @@ notebooklm skill install
 # "/notebooklm generate video"
 ```
 
+## Security and trusted URLs
+
+Dynamic upload and download URLs (e.g. resumable upload hosts and artifact media URLs) are restricted to trusted Google hosts (`*.google.com`, `*.googleusercontent.com`, `*.googleapis.com`). Use the `NOTEBOOKLM_TRUSTED_UPLOAD_HOSTS` environment variable only when necessary and temporarily for a new legitimate host; see [Configuration](docs/configuration.md) and [SECURITY.md](SECURITY.md).
+
 ## Documentation
 
 - **[CLI Reference](docs/cli-reference.md)** - Complete command documentation

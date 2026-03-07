@@ -4,7 +4,8 @@
 
 | Version | Supported          |
 | ------- | ------------------ |
-| 0.1.x   | :white_check_mark: |
+| 0.3.x   | :white_check_mark: |
+| 0.1.x–0.2.x | :x: (no longer supported) |
 
 ## Reporting a Vulnerability
 
@@ -55,6 +56,11 @@ Default location is `~/.notebooklm/` (can be changed via `NOTEBOOKLM_HOME` envir
    - Use `NOTEBOOKLM_AUTH_JSON` environment variable for secure, file-free authentication
    - Store the JSON value in GitHub Secrets or similar secure secret management
    - The env var approach keeps credentials in memory only, never written to disk
+   - `NOTEBOOKLM_AUTH_JSON` (and any file-based `storage_state.json`) remains highly sensitive; anyone with access can impersonate your account to NotebookLM
+
+### Trusted-host validation
+
+Upload and download URLs that receive credentials are validated against a fixed allowlist of Google host suffixes (e.g. `*.google.com`, `*.googleusercontent.com`, `*.googleapis.com`). If you need to allow an additional host (e.g. a new Google-adjacent endpoint), set `NOTEBOOKLM_TRUSTED_UPLOAD_HOSTS` to a comma-separated list of exact hostnames. Use this override only when necessary and temporarily; see [Configuration](docs/configuration.md).
 
 ### What This Library Does NOT Do
 

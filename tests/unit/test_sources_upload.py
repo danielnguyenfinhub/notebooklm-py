@@ -164,9 +164,11 @@ class TestStartResumableUpload:
 
     @pytest.mark.asyncio
     async def test_start_resumable_upload_success(self, sources_api, mock_core):
-        """Test successful upload start."""
+        """Test successful upload start with trusted host."""
         mock_response = MagicMock()
-        mock_response.headers = {"x-goog-upload-url": "https://upload.example.com/session123"}
+        mock_response.headers = {
+            "x-goog-upload-url": "https://upload.googleusercontent.com/session123"
+        }
 
         with patch("httpx.AsyncClient") as mock_client_cls:
             mock_client = AsyncMock()
@@ -179,13 +181,15 @@ class TestStartResumableUpload:
                 "nb_123", "test.pdf", 1024, "src_456"
             )
 
-        assert result == "https://upload.example.com/session123"
+        assert result == "https://upload.googleusercontent.com/session123"
 
     @pytest.mark.asyncio
     async def test_start_resumable_upload_includes_correct_headers(self, sources_api, mock_core):
-        """Test that upload start includes correct headers."""
+        """Test that upload start includes correct headers (fixed UPLOAD_URL only; Cookie allowed there)."""
         mock_response = MagicMock()
-        mock_response.headers = {"x-goog-upload-url": "https://upload.example.com"}
+        mock_response.headers = {
+            "x-goog-upload-url": "https://content.googleapis.com/upload/session"
+        }
 
         with patch("httpx.AsyncClient") as mock_client_cls:
             mock_client = AsyncMock()
@@ -202,7 +206,7 @@ class TestStartResumableUpload:
             assert headers["x-goog-upload-command"] == "start"
             assert headers["x-goog-upload-header-content-length"] == "2048"
             assert headers["x-goog-upload-protocol"] == "resumable"
-            assert "Cookie" in headers
+            assert "Cookie" in headers  # fixed UPLOAD_URL request still uses Cookie
 
     @pytest.mark.asyncio
     async def test_start_resumable_upload_includes_json_body(self, sources_api, mock_core):
@@ -210,7 +214,9 @@ class TestStartResumableUpload:
         import json
 
         mock_response = MagicMock()
-        mock_response.headers = {"x-goog-upload-url": "https://upload.example.com"}
+        mock_response.headers = {
+            "x-goog-upload-url": "https://content.googleapis.com/upload/session"
+        }
 
         with patch("httpx.AsyncClient") as mock_client_cls:
             mock_client = AsyncMock()
@@ -276,35 +282,44 @@ class TestUploadFileStreaming:
 
     @pytest.mark.asyncio
     async def test_upload_file_streaming_success(self, sources_api, mock_core, tmp_path):
-        """Test successful streaming file upload."""
+        """Test successful streaming file upload to trusted host."""
         test_file = tmp_path / "test.txt"
         test_file.write_bytes(b"file content here")
         mock_response = MagicMock()
 
-        with patch("httpx.AsyncClient") as mock_client_cls:
+        with (
+            patch("notebooklm._sources.load_httpx_cookies", return_value=MagicMock()),
+            patch("httpx.AsyncClient") as mock_client_cls,
+        ):
             mock_client = AsyncMock()
             mock_client.__aenter__.return_value = mock_client
             mock_client.__aexit__.return_value = None
             mock_client.post.return_value = mock_response
             mock_client_cls.return_value = mock_client
 
-            # Should not raise
             await sources_api._upload_file_streaming(
-                "https://upload.example.com/session", test_file
+                "https://upload.googleusercontent.com/session123", test_file
             )
 
             mock_client.post.assert_called_once()
+            # AsyncClient must be created with cookies (domain-scoped), not raw Cookie header
+            call_kwargs = mock_client_cls.call_args[1]
+            assert "cookies" in call_kwargs
+            assert call_kwargs.get("follow_redirects") is False
 
     @pytest.mark.asyncio
     async def test_upload_file_streaming_includes_correct_headers(
         self, sources_api, mock_core, tmp_path
     ):
-        """Test that streaming upload includes correct headers."""
+        """Test that streaming upload includes correct headers (no raw Cookie to dynamic host)."""
         test_file = tmp_path / "test.txt"
         test_file.write_bytes(b"content")
         mock_response = MagicMock()
 
-        with patch("httpx.AsyncClient") as mock_client_cls:
+        with (
+            patch("notebooklm._sources.load_httpx_cookies", return_value=MagicMock()),
+            patch("httpx.AsyncClient") as mock_client_cls,
+        ):
             mock_client = AsyncMock()
             mock_client.__aenter__.return_value = mock_client
             mock_client.__aexit__.return_value = None
@@ -312,15 +327,15 @@ class TestUploadFileStreaming:
             mock_client_cls.return_value = mock_client
 
             await sources_api._upload_file_streaming(
-                "https://upload.example.com/session", test_file
+                "https://content.googleapis.com/upload/session123", test_file
             )
 
             call_kwargs = mock_client.post.call_args[1]
             headers = call_kwargs["headers"]
-
             assert headers["x-goog-upload-command"] == "upload, finalize"
             assert headers["x-goog-upload-offset"] == "0"
-            assert "Cookie" in headers
+            # Dynamic upload request must NOT send raw Cookie header (cookies via client)
+            assert "Cookie" not in headers
 
     @pytest.mark.asyncio
     async def test_upload_file_streaming_uses_generator(self, sources_api, mock_core, tmp_path):
@@ -330,14 +345,19 @@ class TestUploadFileStreaming:
         test_file.write_bytes(test_content)
         mock_response = MagicMock()
 
-        with patch("httpx.AsyncClient") as mock_client_cls:
+        with (
+            patch("notebooklm._sources.load_httpx_cookies", return_value=MagicMock()),
+            patch("httpx.AsyncClient") as mock_client_cls,
+        ):
             mock_client = AsyncMock()
             mock_client.__aenter__.return_value = mock_client
             mock_client.__aexit__.return_value = None
             mock_client.post.return_value = mock_response
             mock_client_cls.return_value = mock_client
 
-            await sources_api._upload_file_streaming("https://upload.example.com", test_file)
+            await sources_api._upload_file_streaming(
+                "https://upload.googleusercontent.com/session", test_file
+            )
 
             call_kwargs = mock_client.post.call_args[1]
             # Content should be a generator, not bytes
@@ -356,7 +376,10 @@ class TestUploadFileStreaming:
         test_file = tmp_path / "test.txt"
         test_file.write_bytes(b"content")
 
-        with patch("httpx.AsyncClient") as mock_client_cls:
+        with (
+            patch("notebooklm._sources.load_httpx_cookies", return_value=MagicMock()),
+            patch("httpx.AsyncClient") as mock_client_cls,
+        ):
             mock_client = AsyncMock()
             mock_client.__aenter__.return_value = mock_client
             mock_client.__aexit__.return_value = None
@@ -366,7 +389,70 @@ class TestUploadFileStreaming:
             mock_client_cls.return_value = mock_client
 
             with pytest.raises(httpx.HTTPStatusError):
-                await sources_api._upload_file_streaming("https://upload.example.com", test_file)
+                await sources_api._upload_file_streaming(
+                    "https://upload.googleusercontent.com/session", test_file
+                )
+
+    @pytest.mark.asyncio
+    async def test_upload_file_streaming_rejects_untrusted_host(
+        self, sources_api, mock_core, tmp_path
+    ):
+        """Test that streaming upload to untrusted host raises ValidationError."""
+        from notebooklm.exceptions import ValidationError
+
+        test_file = tmp_path / "test.txt"
+        test_file.write_bytes(b"content")
+
+        with pytest.raises(ValidationError, match="Untrusted host"):
+            await sources_api._upload_file_streaming(
+                "https://upload.example.com/session123", test_file
+            )
+
+    @pytest.mark.asyncio
+    async def test_start_resumable_upload_rejects_untrusted_upload_url(
+        self, sources_api, mock_core
+    ):
+        """Test that evil x-goog-upload-url raises ValidationError before any upload POST."""
+        from notebooklm.exceptions import ValidationError
+
+        mock_response = MagicMock()
+        mock_response.headers = {"x-goog-upload-url": "https://evil.example.com/session"}
+
+        with patch("httpx.AsyncClient") as mock_client_cls:
+            mock_client = AsyncMock()
+            mock_client.__aenter__.return_value = mock_client
+            mock_client.__aexit__.return_value = None
+            mock_client.post.return_value = mock_response
+            mock_client_cls.return_value = mock_client
+
+            with pytest.raises(ValidationError, match="Untrusted host"):
+                await sources_api._start_resumable_upload("nb_123", "test.pdf", 1024, "src_456")
+
+    @pytest.mark.asyncio
+    async def test_upload_file_streaming_trusted_via_env_override(
+        self, sources_api, mock_core, tmp_path, monkeypatch
+    ):
+        """Test that NOTEBOOKLM_TRUSTED_UPLOAD_HOSTS allows extra host for streaming upload."""
+        monkeypatch.setenv("NOTEBOOKLM_TRUSTED_UPLOAD_HOSTS", "upload.example.com")
+        test_file = tmp_path / "test.txt"
+        test_file.write_bytes(b"content")
+        mock_response = MagicMock()
+        mock_cookies = MagicMock()
+
+        with (
+            patch("notebooklm._sources.load_httpx_cookies", return_value=mock_cookies),
+            patch("httpx.AsyncClient") as mock_client_cls,
+        ):
+            mock_client = AsyncMock()
+            mock_client.__aenter__.return_value = mock_client
+            mock_client.__aexit__.return_value = None
+            mock_client.post.return_value = mock_response
+            mock_client_cls.return_value = mock_client
+
+            await sources_api._upload_file_streaming(
+                "https://upload.example.com/session123", test_file
+            )
+            mock_client.post.assert_called_once()
 
 
 # =============================================================================
@@ -387,13 +473,17 @@ class TestAddFile:
         # Mock the registration response - 4 levels with string at deepest
         mock_core.rpc_call.return_value = [[[["src_new_123"]]]]
 
-        # Mock HTTP calls
+        # Mock HTTP calls (trusted host for dynamic upload URL)
         mock_start_response = MagicMock()
-        mock_start_response.headers = {"x-goog-upload-url": "https://upload.example.com/session"}
-
+        mock_start_response.headers = {
+            "x-goog-upload-url": "https://upload.googleusercontent.com/session"
+        }
         mock_upload_response = MagicMock()
 
-        with patch("httpx.AsyncClient") as mock_client_cls:
+        with (
+            patch("notebooklm._sources.load_httpx_cookies", return_value=MagicMock()),
+            patch("httpx.AsyncClient") as mock_client_cls,
+        ):
             mock_client = AsyncMock()
             mock_client.__aenter__.return_value = mock_client
             mock_client.__aexit__.return_value = None
@@ -421,10 +511,15 @@ class TestAddFile:
         mock_core.rpc_call.return_value = [[[["src_txt"]]]]
 
         mock_start_response = MagicMock()
-        mock_start_response.headers = {"x-goog-upload-url": "https://upload.example.com"}
+        mock_start_response.headers = {
+            "x-goog-upload-url": "https://content.googleapis.com/upload/session"
+        }
         mock_upload_response = MagicMock()
 
-        with patch("httpx.AsyncClient") as mock_client_cls:
+        with (
+            patch("notebooklm._sources.load_httpx_cookies", return_value=MagicMock()),
+            patch("httpx.AsyncClient") as mock_client_cls,
+        ):
             mock_client = AsyncMock()
             mock_client.__aenter__.return_value = mock_client
             mock_client.__aexit__.return_value = None

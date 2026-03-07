@@ -13,7 +13,9 @@ from urllib.parse import parse_qs, urlparse
 import httpx
 
 from ._core import ClientCore
+from ._netsec import validate_trusted_https_url
 from ._url_utils import is_youtube_url
+from .auth import load_httpx_cookies
 from .exceptions import ValidationError
 from .rpc import UPLOAD_URL, RPCError, RPCMethod
 from .rpc.types import SourceStatus
@@ -971,7 +973,7 @@ class SourcesAPI:
                 raise SourceAddError(
                     filename, message="Failed to get upload URL from response headers"
                 )
-
+            validate_trusted_https_url(upload_url, purpose="resumable upload start")
             return upload_url
 
     async def _upload_file_streaming(self, upload_url: str, file_path: Path) -> None:
@@ -979,15 +981,17 @@ class SourcesAPI:
 
         Uses streaming to avoid loading the entire file into memory,
         which is important for large PDFs and documents.
+        Validates upload_url before sending; uses domain-scoped cookies only (no raw Cookie header).
 
         Args:
             upload_url: The resumable upload URL from _start_resumable_upload.
             file_path: Path to the file to upload.
         """
+        validate_trusted_https_url(upload_url, purpose="resumable upload streaming")
+        cookies = load_httpx_cookies()
         headers = {
             "Accept": "*/*",
             "Content-Type": "application/x-www-form-urlencoded;charset=utf-8",
-            "Cookie": self._core.auth.cookie_header,
             "Origin": "https://notebooklm.google.com",
             "Referer": "https://notebooklm.google.com/",
             "x-goog-authuser": "0",
@@ -1001,6 +1005,8 @@ class SourcesAPI:
                 while chunk := f.read(65536):  # 64KB chunks
                     yield chunk
 
-        async with httpx.AsyncClient(timeout=300.0) as client:
+        async with httpx.AsyncClient(
+            timeout=300.0, cookies=cookies, follow_redirects=False
+        ) as client:
             response = await client.post(upload_url, headers=headers, content=file_stream())
             response.raise_for_status()

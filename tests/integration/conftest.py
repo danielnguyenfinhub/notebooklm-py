@@ -3,7 +3,9 @@
 import json
 import os
 from pathlib import Path
+from unittest.mock import patch
 
+import httpx
 import pytest
 
 from notebooklm.auth import AuthTokens
@@ -70,6 +72,18 @@ def auth_tokens():
         csrf_token="test_csrf_token",
         session_id="test_session_id",
     )
+
+
+@pytest.fixture
+def patch_load_httpx_cookies():
+    """Patch load_httpx_cookies so upload flows don't require real storage.
+
+    Use in tests that call add_file or _upload_file_streaming.
+    """
+    cookies = httpx.Cookies()
+    cookies.set("SID", "test_sid", domain=".google.com")
+    with patch("notebooklm._sources.load_httpx_cookies", return_value=cookies):
+        yield
 
 
 @pytest.fixture

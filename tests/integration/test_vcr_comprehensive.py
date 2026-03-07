@@ -13,19 +13,22 @@ recorded responses regardless of notebook ID.
 Note: These tests are automatically skipped if cassettes are not available.
 """
 
+import contextlib
 import csv
 import json
 import os
 import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
+from unittest.mock import patch
 
+import httpx
 import pytest
 
 # Add tests directory to path for vcr_config import
 sys.path.insert(0, str(Path(__file__).parent.parent))
 sys.path.insert(0, str(Path(__file__).parent))
-from conftest import get_vcr_auth, skip_no_cassettes
+from conftest import _vcr_record_mode, get_vcr_auth, skip_no_cassettes
 from notebooklm import NotebookLMClient, ReportFormat
 from vcr_config import notebooklm_vcr
 
@@ -659,11 +662,20 @@ class TestSourcesAdditionalAPI:
         test_file = tmp_path / "vcr_test_document.txt"
         test_file.write_text("This is a test document for VCR cassette recording.")
 
-        async with vcr_client() as client:
-            source = await client.sources.add_file(
-                MUTABLE_NOTEBOOK_ID,
-                str(test_file),
-            )
+        # When replaying, load_httpx_cookies() would read from storage (missing); patch it.
+        cookies = httpx.Cookies()
+        cookies.set("SID", "mock_sid", domain=".google.com")
+        patch_ctx = (
+            patch("notebooklm._sources.load_httpx_cookies", return_value=cookies)
+            if not _vcr_record_mode
+            else contextlib.nullcontext()
+        )
+        with patch_ctx:
+            async with vcr_client() as client:
+                source = await client.sources.add_file(
+                    MUTABLE_NOTEBOOK_ID,
+                    str(test_file),
+                )
         assert source is not None
         assert source.id is not None
 

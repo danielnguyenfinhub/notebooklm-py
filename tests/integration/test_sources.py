@@ -465,6 +465,7 @@ class TestAddFileSource:
     async def test_add_file_success(
         self,
         auth_tokens,
+        patch_load_httpx_cookies,
         httpx_mock: HTTPXMock,
         build_rpc_response,
         tmp_path,
@@ -527,6 +528,7 @@ class TestAddFileSource:
     async def test_add_file_rpc_params_format(
         self,
         auth_tokens,
+        patch_load_httpx_cookies,
         httpx_mock: HTTPXMock,
         build_rpc_response,
         tmp_path,
@@ -578,6 +580,7 @@ class TestAddFileSource:
     async def test_add_file_upload_metadata(
         self,
         auth_tokens,
+        patch_load_httpx_cookies,
         httpx_mock: HTTPXMock,
         build_rpc_response,
         tmp_path,
@@ -620,6 +623,7 @@ class TestAddFileSource:
     async def test_add_file_content_upload(
         self,
         auth_tokens,
+        patch_load_httpx_cookies,
         httpx_mock: HTTPXMock,
         build_rpc_response,
         tmp_path,

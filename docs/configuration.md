@@ -80,6 +80,7 @@ A persistent Chromium user data directory used during `notebooklm login`.
 |----------|-------------|---------|
 | `NOTEBOOKLM_HOME` | Base directory for all files | `~/.notebooklm` |
 | `NOTEBOOKLM_AUTH_JSON` | Inline authentication JSON (for CI/CD) | - |
+| `NOTEBOOKLM_TRUSTED_UPLOAD_HOSTS` | Comma-separated exact hostnames for upload/download URL allowlist (override only) | - |
 | `NOTEBOOKLM_LOG_LEVEL` | Logging level: `DEBUG`, `INFO`, `WARNING`, `ERROR` | `WARNING` |
 | `NOTEBOOKLM_DEBUG_RPC` | Legacy: Enable RPC debug logging (use `LOG_LEVEL=DEBUG` instead) | `false` |
 
@@ -117,6 +118,16 @@ notebooklm list  # Works without any file on disk
 4. `~/.notebooklm/storage_state.json` file (default)
 
 **Note:** Cannot run `notebooklm login` when `NOTEBOOKLM_AUTH_JSON` is set.
+
+### NOTEBOOKLM_TRUSTED_UPLOAD_HOSTS
+
+By default, dynamic upload and download URLs are restricted to trusted Google host suffixes (e.g. `*.google.com`, `*.googleusercontent.com`, `*.googleapis.com`). If a legitimate new host is rejected (e.g. after a Google backend change), you can temporarily allow it with this variable. Use exact hostnames only (comma-separated); no wildcards. Prefer upgrading `notebooklm-py` when a new official host is supported.
+
+```bash
+export NOTEBOOKLM_TRUSTED_UPLOAD_HOSTS="new.host.googleapis.com"
+```
+
+See [SECURITY.md](../SECURITY.md) for the security rationale.
 
 ## CLI Options
 

@@ -40,7 +40,7 @@ class TestDownloadUrlsBatch:
 
     @pytest.mark.asyncio
     async def test_batch_download_success(self, mock_artifacts_api, tmp_path):
-        """Test successful batch download of multiple files."""
+        """Test successful batch download of multiple files (trusted hosts only)."""
         api, _ = mock_artifacts_api
 
         # Create mock response with binary content
@@ -60,8 +60,14 @@ class TestDownloadUrlsBatch:
             mock_client_cls.return_value = mock_client
 
             urls_and_paths = [
-                ("https://example.com/file1.mp4", str(tmp_path / "file1.mp4")),
-                ("https://example.com/file2.mp4", str(tmp_path / "file2.mp4")),
+                (
+                    "https://content.googleapis.com/file1.mp4",
+                    str(tmp_path / "file1.mp4"),
+                ),
+                (
+                    "https://content.googleapis.com/file2.mp4",
+                    str(tmp_path / "file2.mp4"),
+                ),
             ]
 
             result = await api._download_urls_batch(urls_and_paths)
@@ -92,7 +98,10 @@ class TestDownloadUrlsBatch:
             mock_client_cls.return_value = mock_client
 
             urls_and_paths = [
-                ("https://example.com/file.mp4", str(tmp_path / "file.mp4")),
+                (
+                    "https://content.googleapis.com/file.mp4",
+                    str(tmp_path / "file.mp4"),
+                ),
             ]
 
             # HTML response should raise ArtifactDownloadError
@@ -120,8 +129,14 @@ class TestDownloadUrlsBatch:
             mock_client_cls.return_value = mock_client
 
             urls_and_paths = [
-                ("https://example.com/file1.mp4", str(tmp_path / "file1.mp4")),
-                ("https://example.com/file2.mp4", str(tmp_path / "file2.mp4")),
+                (
+                    "https://content.googleapis.com/file1.mp4",
+                    str(tmp_path / "file1.mp4"),
+                ),
+                (
+                    "https://content.googleapis.com/file2.mp4",
+                    str(tmp_path / "file2.mp4"),
+                ),
             ]
 
             result = await api._download_urls_batch(urls_and_paths)
@@ -129,6 +144,23 @@ class TestDownloadUrlsBatch:
         # Only first file should succeed
         assert len(result) == 1
         assert str(tmp_path / "file1.mp4") in result
+
+    @pytest.mark.asyncio
+    async def test_batch_download_rejects_untrusted_url(self, mock_artifacts_api, tmp_path):
+        """Test that _download_urls_batch validates URLs and rejects untrusted host."""
+        from notebooklm.exceptions import ValidationError
+
+        api, _ = mock_artifacts_api
+
+        urls_and_paths = [
+            ("https://evil.example.com/file.mp4", str(tmp_path / "file.mp4")),
+        ]
+
+        with (
+            patch("notebooklm._artifacts.load_httpx_cookies", return_value={}),
+            pytest.raises(ValidationError, match="Untrusted host"),
+        ):
+            await api._download_urls_batch(urls_and_paths)
 
 
 # =============================================================================
