@@ -1,0 +1,34 @@
+# notebooklm-py test environment with login support.
+# See docs/docker.md for login options (X11 or mount host auth).
+
+services:
+  notebooklm:
+    build: .
+    image: notebooklm-py:latest
+    container_name: notebooklm-py
+    stdin_open: true
+    tty: true
+    ipc: host  # Recommended for Chromium (see Playwright Docker docs)
+    environment:
+      - NOTEBOOKLM_HOME=/root/.notebooklm
+    volumes:
+      - notebooklm-data:/root/.notebooklm
+    working_dir: /workspace
+    entrypoint: ["/bin/bash"]
+
+  # Same as notebooklm but with X11 forwarding so the browser can run in the container.
+  # Linux: xhost +local:docker  then  docker compose run --rm notebooklm-x11
+  # macOS: install XQuartz, xhost +localhost  then  docker compose run --rm notebooklm-x11
+  notebooklm-x11:
+    extends: notebooklm
+    container_name: notebooklm-py-x11  # avoid conflict with notebooklm
+    environment:
+      - NOTEBOOKLM_HOME=/root/.notebooklm
+      # Linux uses $DISPLAY (:0); macOS XQuartz: host.docker.internal:0
+      - DISPLAY=${DISPLAY:-host.docker.internal:0}
+    volumes:
+      - notebooklm-data:/root/.notebooklm
+      - /tmp/.X11-unix:/tmp/.X11-unix  # Linux X11 socket (harmless on macOS)
+
+volumes:
+  notebooklm-data:

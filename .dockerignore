@@ -1,0 +1,24 @@
+# Avoid sending unnecessary context to the daemon
+.git
+.github
+.venv
+venv
+__pycache__
+*.pyc
+.pytest_cache
+.mypy_cache
+.ruff_cache
+*.egg-info
+dist
+build
+notepads
+.cursor
+.codex
+*.md
+!README.md
+tests
+docs
+openspec
+docker-compose.yml
+Dockerfile
+.dockerignore

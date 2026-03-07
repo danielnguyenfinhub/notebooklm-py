@@ -83,6 +83,32 @@ These features are available via API/CLI but not exposed in NotebookLM's web int
 
 ## Installation
 
+### With uv (recommended)
+
+[uv](https://docs.astral.sh/uv/) is a fast Python package installer and resolver. Use it to create a venv and install:
+
+```bash
+# Create a virtual environment and install (basic)
+uv venv
+source .venv/bin/activate   # Windows: .venv\Scripts\activate
+uv pip install notebooklm-py
+
+# With browser login support (required for first-time setup)
+uv pip install "notebooklm-py[browser]"
+playwright install chromium
+```
+
+To install the current repo in editable mode with browser support:
+
+```bash
+uv venv
+source .venv/bin/activate
+uv pip install -e ".[browser]"
+playwright install chromium
+```
+
+### With pip
+
 ```bash
 # Basic installation
 pip install notebooklm-py
@@ -94,9 +120,16 @@ playwright install chromium
 
 ### Development Installation
 
+From the repo root you can use the [Makefile](Makefile) with uv: `make install-dev` then `make test` or `make check`. Run `make help` to see all targets.
+
 For contributors or testing unreleased features:
 
 ```bash
+# With uv (from repo root)
+uv pip install -e ".[all]"
+playwright install chromium
+
+# Or with pip
 pip install git+https://github.com/teng-lin/notebooklm-py@main
 ```
 
@@ -199,6 +232,7 @@ Dynamic upload and download URLs (e.g. resumable upload hosts and artifact media
 - **[CLI Reference](docs/cli-reference.md)** - Complete command documentation
 - **[Python API](docs/python-api.md)** - Full API reference
 - **[Configuration](docs/configuration.md)** - Storage and settings
+- **[Docker](docs/docker.md)** - Run and test with login in a container
 - **[Troubleshooting](docs/troubleshooting.md)** - Common issues and solutions
 - **[API Stability](docs/stability.md)** - Versioning policy and stability guarantees
 

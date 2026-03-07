@@ -198,40 +198,77 @@ def register_session_commands(cli):
         console.print("[yellow]Opening browser for Google login...[/yellow]")
         console.print(f"[dim]Using persistent profile: {browser_profile}[/dim]")
 
-        # Use context manager to restore ProactorEventLoop for Playwright on Windows
-        # (fixes #89: NotImplementedError on Windows Python 3.12)
-        with _windows_playwright_event_loop(), sync_playwright() as p:
-            context = p.chromium.launch_persistent_context(
-                user_data_dir=str(browser_profile),
-                headless=False,
-                args=[
-                    "--disable-blink-features=AutomationControlled",
-                    "--password-store=basic",  # Avoid macOS keychain encryption for headless compatibility
-                ],
-                ignore_default_args=["--enable-automation"],
+        try:
+            # Use context manager to restore ProactorEventLoop for Playwright on Windows
+            # (fixes #89: NotImplementedError on Windows Python 3.12)
+            with _windows_playwright_event_loop(), sync_playwright() as p:
+                context = p.chromium.launch_persistent_context(
+                    user_data_dir=str(browser_profile),
+                    headless=False,
+                    args=[
+                        "--disable-blink-features=AutomationControlled",
+                        "--password-store=basic",  # Avoid macOS keychain encryption for headless compatibility
+                    ],
+                    ignore_default_args=["--enable-automation"],
+                )
+
+                page = context.pages[0] if context.pages else context.new_page()
+                page.goto("https://notebooklm.google.com/")
+
+                console.print("\n[bold green]Instructions:[/bold green]")
+                console.print("1. Complete the Google login in the browser window")
+                console.print("2. Wait until you see the NotebookLM homepage")
+                console.print("3. Press [bold]ENTER[/bold] here to save and close\n")
+
+                input("[Press ENTER when logged in] ")
+
+                current_url = page.url
+                if "notebooklm.google.com" not in current_url:
+                    console.print(f"[yellow]Warning: Current URL is {current_url}[/yellow]")
+                    if not click.confirm("Save authentication anyway?"):
+                        context.close()
+                        raise SystemExit(1)
+
+                context.storage_state(path=str(storage_path))
+                # Restrict permissions to owner only (contains sensitive cookies)
+                storage_path.chmod(0o600)
+                context.close()
+        except Exception as e:
+            cause = getattr(e, "__cause__", None)
+            err_text = (str(e) + " " + (str(cause) if cause else "")).lower()
+            # Playwright prints "Missing X server or $DISPLAY" to stderr; the exception is TargetClosedError
+            no_display = (
+                "x server" in err_text
+                or "xserver" in err_text
+                or "missing x server" in err_text
+                or ("display" in err_text and "missing" in err_text)
+                or (
+                    "launch_persistent_context" in err_text
+                    and "has been closed" in err_text
+                    and os.path.exists("/.dockerenv")
+                )
             )
-
-            page = context.pages[0] if context.pages else context.new_page()
-            page.goto("https://notebooklm.google.com/")
-
-            console.print("\n[bold green]Instructions:[/bold green]")
-            console.print("1. Complete the Google login in the browser window")
-            console.print("2. Wait until you see the NotebookLM homepage")
-            console.print("3. Press [bold]ENTER[/bold] here to save and close\n")
-
-            input("[Press ENTER when logged in] ")
-
-            current_url = page.url
-            if "notebooklm.google.com" not in current_url:
-                console.print(f"[yellow]Warning: Current URL is {current_url}[/yellow]")
-                if not click.confirm("Save authentication anyway?"):
-                    context.close()
-                    raise SystemExit(1)
-
-            context.storage_state(path=str(storage_path))
-            # Restrict permissions to owner only (contains sensitive cookies)
-            storage_path.chmod(0o600)
-            context.close()
+            if no_display:
+                display_set = bool(os.environ.get("DISPLAY"))
+                if display_set:
+                    console.print(
+                        "[red]Browser could not connect to the X server.[/red]\n\n"
+                        "[bold]DISPLAY[/bold] is set but the browser could not connect. On your host:\n"
+                        "  • [bold]Linux[/bold]: Run [dim]xhost +local:docker[/dim] before starting the container.\n"
+                        "  • [bold]macOS[/bold]: Install XQuartz, start it, then run [dim]xhost +localhost[/dim].\n"
+                        "    In XQuartz → Preferences → Security, enable “Allow connections from network clients”.\n\n"
+                        "See docs/docker.md for full steps."
+                    )
+                else:
+                    console.print(
+                        "[red]Browser could not start: no display available.[/red]\n\n"
+                        "In Docker or headless environments, run [bold]notebooklm login[/bold] on your host "
+                        "(with a display), then use the container with auth mounted:\n"
+                        "  [dim]docker compose run --rm -v ~/.notebooklm:/root/.notebooklm:ro notebooklm -c 'notebooklm list'[/dim]\n\n"
+                        "Or use the [bold]notebooklm-x11[/bold] service with X11 on your host; see docs/docker.md."
+                    )
+                raise SystemExit(1) from e
+            raise
 
         console.print(f"\n[green]Authentication saved to:[/green] {storage_path}")
 
