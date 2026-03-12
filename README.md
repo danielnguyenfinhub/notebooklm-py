@@ -3,12 +3,15 @@
   <img src="https://raw.githubusercontent.com/teng-lin/notebooklm-py/main/notebooklm-py.png" alt="notebooklm-py logo" width="128">
 </p>
 
-**Comprehensive Python API for Google NotebookLM.** Full programmatic access to NotebookLM's features—including capabilities the web UI doesn't expose—from Python or the command line.
+**Unofficial Python API and agentic skill for Google NotebookLM.** Full programmatic access to NotebookLM's features—including capabilities the web UI doesn't expose—via Python, CLI, and AI agents like Claude Code, Codex, and OpenClaw.
 
 [![PyPI version](https://img.shields.io/pypi/v/notebooklm-py.svg)](https://pypi.org/project/notebooklm-py/)
 [![Python Version](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12%20%7C%203.13%20%7C%203.14-blue)](https://pypi.org/project/notebooklm-py/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Tests](https://github.com/teng-lin/notebooklm-py/actions/workflows/test.yml/badge.svg)](https://github.com/teng-lin/notebooklm-py/actions/workflows/test.yml)
+<p>
+  <a href="https://trendshift.io/repositories/19116" target="_blank"><img src="https://trendshift.io/api/badge/repositories/19116" alt="teng-lin%2Fnotebooklm-py | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
+</p>
 
 **Source & Development**: <https://github.com/teng-lin/notebooklm-py>
 
@@ -57,7 +60,7 @@
 | Type | Options | Download Format |
 |------|---------|-----------------|
 | **Audio Overview** | 4 formats (deep-dive, brief, critique, debate), 3 lengths, 50+ languages | MP3/MP4 |
-| **Video Overview** | 2 formats, 9 visual styles (classic, whiteboard, kawaii, anime, etc.) | MP4 |
+| **Video Overview** | 3 formats (explainer, brief, cinematic), 9 visual styles, plus a dedicated `cinematic-video` CLI alias | MP4 |
 | **Slide Deck** | Detailed or presenter format, adjustable length; individual slide revision | PDF, PPTX |
 | **Infographic** | 3 orientations, 3 detail levels | PNG |
 | **Quiz** | Configurable quantity and difficulty | JSON, Markdown, HTML |
@@ -161,6 +164,7 @@ notebooklm ask "What are the key themes?"
 # 4. Generate content
 notebooklm generate audio "make it engaging" --wait
 notebooklm generate video --style whiteboard --wait
+notebooklm generate cinematic-video "documentary-style summary" --wait
 notebooklm generate quiz --difficulty hard
 notebooklm generate flashcards --quantity more
 notebooklm generate slide-deck
@@ -171,11 +175,24 @@ notebooklm generate data-table "compare key concepts"
 # 5. Download artifacts
 notebooklm download audio ./podcast.mp3
 notebooklm download video ./overview.mp4
+notebooklm download cinematic-video ./documentary.mp4
 notebooklm download quiz --format markdown ./quiz.md
 notebooklm download flashcards --format json ./cards.json
 notebooklm download slide-deck ./slides.pdf
+notebooklm download infographic ./infographic.png
 notebooklm download mind-map ./mindmap.json
 notebooklm download data-table ./data.csv
+```
+
+Other useful CLI commands:
+
+```bash
+notebooklm auth check --test         # Diagnose auth/cookie issues
+notebooklm language list             # List supported output languages
+notebooklm metadata --json           # Export notebook metadata and sources
+notebooklm share status              # Inspect sharing state
+notebooklm source add-research "AI"  # Start web research and import sources
+notebooklm skill status              # Check Claude Code skill installation
 ```
 
 ### Python API
@@ -233,6 +250,7 @@ Dynamic upload and download URLs (e.g. resumable upload hosts and artifact media
 - **[Python API](docs/python-api.md)** - Full API reference
 - **[Configuration](docs/configuration.md)** - Storage and settings
 - **[Docker](docs/docker.md)** - Run and test with login in a container
+- **[Release Guide](docs/releasing.md)** - Release checklist and packaging verification
 - **[Troubleshooting](docs/troubleshooting.md)** - Common issues and solutions
 - **[API Stability](docs/stability.md)** - Versioning policy and stability guarantees
 
@@ -251,6 +269,10 @@ Dynamic upload and download URLs (e.g. resumable upload hosts and artifact media
 | **macOS** | ✅ Tested | Primary development platform |
 | **Linux** | ✅ Tested | Fully supported |
 | **Windows** | ✅ Tested | Tested in CI |
+
+## Star History
+
+[![Star History Chart](https://api.star-history.com/image?repos=teng-lin/notebooklm-py&type=timeline&legend=top-left)](https://www.star-history.com/?repos=teng-lin%2Fnotebooklm-py&type=timeline&legend=top-left)
 
 ## License
 
