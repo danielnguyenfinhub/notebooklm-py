@@ -56,7 +56,9 @@ jobs:
             'pytest-timeout>=2.3.0' 'python-dotenv>=1.0.0' 'vcrpy>=6.0.0' \
             'playwright>=1.40.0'
           (
-            cd "$RUNNER_TEMP"
+            # VCR cassette paths are relative to the checkout. Python -I and
+            # the import-origin checks still require the installed package.
+            cd "$GITHUB_WORKSPACE"
             env -u PYTHONPATH NOTEBOOKLM_VCR_RECORD=0 \
               "$venv/bin/python" -I - "$GITHUB_WORKSPACE" "$variant" <<'PY'
         import importlib
