@@ -1,0 +1,127 @@
+name: Verify Current-Head Packages
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    name: Wheel and sdist (Ubuntu, Python 3.12)
+    runs-on: ubuntu-latest
+    env:
+      EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+    - uses: actions/checkout@v7
+      with:
+        ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+    - name: Set up Python 3.12
+      uses: actions/setup-python@v7
+      with:
+        python-version: "3.12"
+
+    - name: Build publisher artifacts and rebuild the sdist
+      shell: bash
+      run: |
+        set -euo pipefail
+        python3 -m pip install --upgrade pip
+        python3 -m pip install build
+        test "$(git rev-parse HEAD)" = "$EXPECTED_HEAD"
+        python3 -m build --outdir "$RUNNER_TEMP/source-dist"
+        mkdir -p "$RUNNER_TEMP/sdist-src" "$RUNNER_TEMP/sdist-wheel"
+        tar -xzf "$RUNNER_TEMP"/source-dist/*.tar.gz -C "$RUNNER_TEMP/sdist-src" --strip-components=1
+        python3 -m build --wheel "$RUNNER_TEMP/sdist-src" --outdir "$RUNNER_TEMP/sdist-wheel"
+        git rev-parse HEAD
+        git rev-parse 'HEAD^{tree}'
+        python3 --version
+        python3 -m pip --version
+        sha256sum "$RUNNER_TEMP"/source-dist/* "$RUNNER_TEMP"/sdist-wheel/*
+
+    - name: Test both installed distributions against current-head tests
+      shell: bash
+      run: |
+        set -euo pipefail
+        for variant in wheel sdist; do
+          venv="$RUNNER_TEMP/verify-$variant"
+          python3 -m venv "$venv"
+          if [ "$variant" = wheel ]; then
+            artifact=("$RUNNER_TEMP"/source-dist/*.whl)
+          else
+            artifact=("$RUNNER_TEMP"/sdist-wheel/*.whl)
+          fi
+          test "${#artifact[@]}" -eq 1
+          "$venv/bin/python" -m pip install "${artifact[0]}" \
+            'pytest>=8.0.0' 'pytest-asyncio>=0.23.0' 'pytest-httpx>=0.30.0' \
+            'pytest-cov>=4.0.0' 'pytest-rerunfailures>=14.0' \
+            'pytest-timeout>=2.3.0' 'python-dotenv>=1.0.0' 'vcrpy>=6.0.0' \
+            'playwright>=1.40.0'
+          "$venv/bin/notebooklm" --version
+          "$venv/bin/notebooklm" --help > /dev/null
+          echo "$variant: installed CLI version and help passed"
+          (
+            # VCR cassette paths are relative to the checkout. Python -I and
+            # the import-origin checks still require the installed package.
+            cd "$GITHUB_WORKSPACE"
+            env -u PYTHONPATH NOTEBOOKLM_VCR_RECORD=0 \
+              "$venv/bin/python" -I - "$GITHUB_WORKSPACE" "$variant" <<'PY'
+        from collections import Counter
+        import importlib
+        import importlib.metadata
+        import pathlib
+        import sys
+        import tomllib
+
+        import pytest
+
+        root = pathlib.Path(sys.argv[1]).resolve()
+        variant = sys.argv[2]
+        expected = tomllib.loads((root / "pyproject.toml").read_text())["project"]["version"]
+        assert importlib.metadata.version("notebooklm-py") == expected
+        import notebooklm
+        import notebooklm._netsec
+        from notebooklm import NotebookLMClient, Notebook, Source, Artifact
+        assert all((NotebookLMClient, Notebook, Source, Artifact))
+        assert pathlib.Path(notebooklm.__file__).resolve().is_relative_to(pathlib.Path(sys.prefix).resolve())
+        assert pathlib.Path(notebooklm._netsec.__file__).resolve().is_relative_to(pathlib.Path(sys.prefix).resolve())
+        assert str(root / "src") not in sys.path
+        print(f"{variant}: installed notebooklm={notebooklm.__file__}; _netsec={notebooklm._netsec.__file__}", flush=True)
+        class SkipAudit:
+            def __init__(self):
+                self.skipped = []
+
+            def pytest_runtest_logreport(self, report):
+                if report.skipped:
+                    self.skipped.append((report.nodeid, str(report.longrepr)))
+
+        audit = SkipAudit()
+        result = pytest.main([
+            str(root / "tests/unit"), str(root / "tests/integration"),
+            "-c", str(root / "pyproject.toml"), "--import-mode=importlib", "-q", "-ra",
+        ], plugins=[audit])
+        skip_counts = Counter(str(pathlib.Path(nodeid.split("::")[0]).resolve().relative_to(root))
+                              for nodeid, _ in audit.skipped)
+        print(f"{variant}: observed skip counts={dict(skip_counts)}", flush=True)
+        for nodeid, reason in audit.skipped:
+            print(f"{variant}: expected skip {nodeid}: {reason}", flush=True)
+        expected_skips = {
+            "tests/unit/test_windows_compatibility.py": 5,
+            "tests/integration/cli_vcr/test_chat.py": 2,
+            "tests/integration/test_vcr_comprehensive.py": 2,
+        }
+        assert skip_counts == expected_skips, (skip_counts, expected_skips)
+        for name, module in list(sys.modules.items()):
+            if name == "notebooklm" or name.startswith("notebooklm."):
+                origin = getattr(module, "__file__", None)
+                if origin:
+                    resolved = pathlib.Path(origin).resolve()
+                    assert resolved.is_relative_to(pathlib.Path(sys.prefix).resolve()), (name, resolved)
+                    assert not resolved.is_relative_to(root), (name, resolved)
+        raise SystemExit(result)
+        PY
+          )
+        done
