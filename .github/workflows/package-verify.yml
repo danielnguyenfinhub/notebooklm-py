@@ -111,6 +111,7 @@ jobs:
         expected_skips = {
             "tests/unit/test_windows_compatibility.py": 5,
             "tests/integration/cli_vcr/test_chat.py": 2,
+            "tests/integration/test_vcr_comprehensive.py": 2,
         }
         assert skip_counts == expected_skips, (skip_counts, expected_skips)
         for name, module in list(sys.modules.items()):
